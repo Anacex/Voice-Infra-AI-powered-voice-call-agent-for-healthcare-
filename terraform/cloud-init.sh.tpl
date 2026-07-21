@@ -20,6 +20,22 @@ mkdir -p /opt/voice-infra
 git clone ${repo_url} /opt/voice-infra
 cd /opt/voice-infra
 
+echo "==> Cloning sibling repos (referenced by docker-compose build paths)"
+# server-monitor: referenced as  build: ../server-monitor  in docker-compose.yml
+%{ if server_monitor_repo_url != "" ~}
+git clone ${server_monitor_repo_url} /opt/server-monitor
+ln -sf /opt/server-monitor /opt/server-monitor  # already in place
+%{ else ~}
+echo "WARNING: server_monitor_repo_url not set — server-monitor service will be skipped if image unavailable"
+%{ endif ~}
+
+# log-collector: gRPC tracing stack with its own docker-compose.yml
+%{ if log_collector_repo_url != "" ~}
+git clone ${log_collector_repo_url} /opt/log-collector
+%{ else ~}
+echo "INFO: log_collector_repo_url not set — log-collector stack will not be started"
+%{ endif ~}
+
 echo "==> Writing .env (never committed — written directly on the host from Terraform vars)"
 cat > .env <<ENVEOF
 DOMAIN=${domain}

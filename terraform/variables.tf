@@ -29,6 +29,18 @@ variable "repo_url" {
   description = "HTTPS URL of this repo, e.g. https://github.com/<you>/voice-infra.git"
 }
 
+variable "server_monitor_repo_url" {
+  type        = string
+  description = "HTTPS URL of the server-monitor sibling repo (cloned as a peer of this repo on the host)"
+  default     = ""
+}
+
+variable "log_collector_repo_url" {
+  type        = string
+  description = "HTTPS URL of the log-collector sibling repo (cloned as a peer of this repo on the host)"
+  default     = ""
+}
+
 variable "pg_password" {
   type      = string
   sensitive = true

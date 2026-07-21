@@ -5,6 +5,13 @@ ssh_key_name           = "your-ec2-keypair-name"
 ssh_allowed_cidr        = "YOUR.IP.ADDR.ESS/32"   # find yours: curl -s ifconfig.me
 domain                  = "candidate-name.stratus-eval.dev"
 repo_url                = "https://github.com/<you>/voice-infra.git"
+
+# Sibling repos — cloned by cloud-init alongside this repo on the EC2 host.
+# Required for docker-compose.yml's  build: ../server-monitor  path to resolve.
+# Leave empty ("") to skip that service if the repo is not accessible.
+server_monitor_repo_url = "https://github.com/<you>/server-monitor.git"
+log_collector_repo_url  = "https://github.com/<you>/log-collector.git"
+
 pg_password             = "generate-a-strong-random-password"
 grafana_admin_password  = "generate-a-strong-random-password"
 vapi_webhook_secret     = ""

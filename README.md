@@ -4,6 +4,10 @@ Operational infrastructure for an AI voice receptionist handling patient calls
 (scheduling, refill requests, routing). Built for the DevOps/Infrastructure
 take-home challenge.
 
+**→ To actually stand this up and test it (locally or on cloud infra via
+Terraform), follow [`SetupRunGuide.md`](./SetupRunGuide.md) — this README is
+the architecture/decisions/trade-offs writeup.**
+
 **Repo layout:**
 ```
 backend/          FastAPI service — Vapi webhook receiver, call persistence, /metrics
@@ -13,9 +17,11 @@ monitoring/        Prometheus scrape config, alert rules, Grafana dashboards
 backup/            pg_dump backup script, restore-test script, cron schedule
 agent-config.json  Reproducible Vapi agent definition (not click-through)
 deploy.sh          One-command deploy for a fresh VPS
-log-collector/     (external repo, linked below) — distributed tracing across
-                    frontend/backend/AIS/CV spans, already built
-server-monitor/    (external repo, linked below) — SSL + disk alerting, already built
+terraform/         AWS Terraform, ready to apply once cloud creds arrive
+log-collector/     (external repo: https://github.com/Anacex/Log-collector-telemetry)
+                    distributed tracing across frontend/backend/AIS/CV spans
+server-monitor/    (external repo: https://github.com/Anacex/server-monitoring-discord-alerts-service)
+                    SSL + disk alerting, already built
 ```
 
 ---
@@ -33,12 +39,14 @@ server-monitor/    (external repo, linked below) — SSL + disk alerting, alread
 - **Backups** — nightly `pg_dump` via cron, rotated at 14 days, with a
   separate restore-test script that actually restores into a throwaway DB
   and checks row counts (not just "the file exists").
-- **Telemetry/observability** — I already had a gRPC log collector with
-  OpenTelemetry distributed tracing (Jaeger) and Slack alerting, plus
-  `server-monitor` for SSL/disk. This build adds the missing piece: call-level
-  metrics and structured logs from the actual voice-agent traffic, visualized
-  in Grafana, alerting through Prometheus/Alertmanager into the same Discord
-  channel `server-monitor` already posts to.
+- **Telemetry/observability** — wires together two production-ready tools I
+  built prior to this challenge (gRPC Log Collector with OpenTelemetry/Jaeger
+  tracing, and `server-monitor` for SSL/disk alerting) alongside new
+  call-level metrics and structured logs from the actual voice-agent traffic,
+  visualized in Grafana and alerting through Prometheus/Alertmanager into the
+  same Discord channel `server-monitor` already posts to. See "Pre-existing
+  observability tooling" below for what's plug-and-play today vs. what
+  integration work remains.
 
 ---
 
@@ -79,7 +87,70 @@ not a rewrite.
 
 ---
 
-## Cloud deployment status
+## Pre-existing observability tooling & integration status
+
+Before this challenge, I had already built two production-quality
+operational tools for other projects. Rather than build new telemetry/alerting
+from scratch in a 3-hour window, I brought both in — one is fully wired in
+and running today, the other is deployed alongside the stack but not yet
+emitting data from this specific application's code path. I'm documenting
+that distinction explicitly rather than implying more integration than
+actually exists.
+
+### `server-monitor` — fully integrated, no changes needed
+**Repo:** https://github.com/Anacex/server-monitoring-discord-alerts-service
+
+A Go service that checks TLS certificate expiry and host disk usage,
+alerting to Discord with per-alert cooldown/dedup. It's generic and
+config-driven via environment variables (`SSL_DOMAINS`, `DISK_THRESHOLD_PERCENT`,
+etc.) — no code changes were needed to point it at this project. It's wired
+directly into `docker-compose.yml`, watching this host's disk and the
+production domain's TLS cert, alerting into the same Discord channel as
+Prometheus/Alertmanager. This one is genuinely plug-and-play and is live in
+both the local and cloud deployments.
+
+### gRPC Log Collector — deployed side-by-side, integration work remains
+**Repo:** https://github.com/Anacex/Log-collector-telemetry
+
+A distributed tracing service (OpenTelemetry + Jaeger) with a worker pool,
+Slack notifications, and gRPC ingestion, built for a different project with
+its own demo topology (`frontend -> backend -> AIS -> CV` services, each
+exposing a gRPC endpoint that accepts spans).
+
+**What's true today:** the repo is cloned and its own docker-compose stack
+(including its own Jaeger instance) runs alongside this project's stack
+(Terraform automates this — see `terraform/cloud-init.sh.tpl`). Jaeger's UI
+is reachable and functional.
+
+**What's NOT true today, stated plainly:** this project's FastAPI backend
+does not currently emit spans into that collector. The log-collector's
+`frontend/backend/AIS/CV` services are its own demo instrumentation targets
+from the project it was originally built for — they are not the voice-agent
+backend. Calling the voice agent right now will not produce a trace in
+Jaeger.
+
+**What real integration would require** (scoped, not started, due to the
+3-hour budget):
+1. Add the OpenTelemetry Python SDK to `backend/requirements.txt` and
+   instrument `backend/main.py` — wrap the webhook handler and each DB call
+   in spans (`call_id` as a span attribute), matching the nested-span pattern
+   the collector already supports.
+2. Either point the backend's OTLP exporter directly at the log-collector's
+   Jaeger instance (`OTLP_GRPC_ENDPOINT=jaeger:4317`), or send spans through
+   the log-collector's own gRPC `SendLog`/`StreamLogs` API using its
+   `service_name` convention, depending on which integration path fits the
+   collector's design better — worth a design conversation rather than a
+   guess under time pressure.
+3. Update the "Data flow / traceability" section below so `call_id` and
+   Jaeger `trace_id` are cross-referenced from the `/calls/{call_id}` API
+   response, closing the loop described in "What I'd do with more time."
+
+I'd rather ship this honestly incomplete than claim tracing coverage that
+isn't real — the collector genuinely works (see its own README's
+`trace-test.sh` simulation to verify it independently), it's just not yet
+receiving this application's actual traffic.
+
+---
 
 **Blocked on cloud credentials.** Per the challenge FAQ ("What if I run into
 issues with the provided credentials? Contact us immediately... time spent
@@ -347,13 +418,10 @@ auto-provisioned). Alerts: Discord `#alerts` channel (shared with
 
 ---
 
-## Related repos (already built, referenced by this stack)
+## Related repos
 
-- **gRPC Log Collector** — distributed tracing (OpenTelemetry + Jaeger)
-  across frontend/backend/AIS/CV spans, worker-pool log ingestion, Slack
-  alerting on errors/panics.
-- **server-monitor** — Go service checking TLS cert expiry and host disk
-  usage, alerting to Discord with per-alert cooldown, `~10MB` scratch image.
+See **"Pre-existing observability tooling & integration status"** above for
+the full picture, including what's actually wired in vs. deployed-but-not-yet-integrated.
 
-Both are wired into this stack's Discord alert channel and (for
-server-monitor) the docker-compose network; see `docker-compose.yml`.
+- gRPC Log Collector — https://github.com/Anacex/Log-collector-telemetry
+- server-monitor — https://github.com/Anacex/server-monitoring-discord-alerts-service

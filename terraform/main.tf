@@ -84,13 +84,15 @@ resource "aws_instance" "voice_agent" {
   # variables marked sensitive, which come from a .tfvars file that is
   # itself gitignored (see terraform.tfvars.example).
   user_data = templatefile("${path.module}/cloud-init.sh.tpl", {
-    domain                  = var.domain
-    pg_password              = var.pg_password
-    grafana_admin_password   = var.grafana_admin_password
-    vapi_webhook_secret      = var.vapi_webhook_secret
-    vapi_api_key             = var.vapi_api_key
-    discord_webhook_url      = var.discord_webhook_url
-    repo_url                 = var.repo_url
+    domain                    = var.domain
+    pg_password               = var.pg_password
+    grafana_admin_password    = var.grafana_admin_password
+    vapi_webhook_secret       = var.vapi_webhook_secret
+    vapi_api_key              = var.vapi_api_key
+    discord_webhook_url       = var.discord_webhook_url
+    repo_url                  = var.repo_url
+    server_monitor_repo_url   = var.server_monitor_repo_url
+    log_collector_repo_url    = var.log_collector_repo_url
   })
 
   tags = { Name = "voice-agent-backend" }
