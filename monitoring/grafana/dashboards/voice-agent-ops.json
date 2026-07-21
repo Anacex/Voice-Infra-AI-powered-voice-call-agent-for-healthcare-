@@ -1,0 +1,68 @@
+{
+  "title": "Voice Agent Operations",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Backend Up",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "up{job=\"voice-backend\"}" }]
+    },
+    {
+      "type": "stat",
+      "title": "DB Reachable",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "voice_db_up" }]
+    },
+    {
+      "type": "stat",
+      "title": "Calls In Progress",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "voice_calls_in_progress" }]
+    },
+    {
+      "type": "stat",
+      "title": "Webhook Error Rate (5m)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(voice_webhook_errors_total[5m])) / clamp_min(sum(rate(voice_webhook_events_total[5m])), 1)"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls per minute by end reason",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{ "expr": "sum(rate(voice_calls_total[1m])) by (status)" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Webhook latency p50/p95/p99",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(voice_webhook_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(voice_webhook_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(voice_webhook_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Webhook events by type",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{ "expr": "sum(rate(voice_webhook_events_total[5m])) by (event_type)" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool call failures by tool",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{ "expr": "sum(rate(voice_tool_call_errors_total[5m])) by (tool_name)" }]
+    },
+    {
+      "type": "histogram",
+      "title": "Call duration distribution",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "targets": [{ "expr": "rate(voice_call_duration_seconds_bucket[30m])" }]
+    }
+  ]
+}

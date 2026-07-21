@@ -1,0 +1,9 @@
+# Install with: crontab backup/crontab.example
+# (edit the path to match your actual deploy directory)
+
+# Nightly backup at 3:00 AM server time
+0 3 * * * cd /opt/voice-infra && ./backup/backup.sh >> /var/log/voice-backup.log 2>&1
+
+# Weekly restore test (Sunday 4:00 AM) against the most recent dump —
+# proves backups stay restorable over time, not just on day one
+0 4 * * 0 cd /opt/voice-infra && ./backup/restore-test.sh "$(ls -t backup/backups/*.dump | head -1)" >> /var/log/voice-restore-test.log 2>&1

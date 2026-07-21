@@ -1,0 +1,43 @@
+# Local development override. Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+#
+# Differences from prod:
+#   - Caddy is skipped entirely (it needs a real public domain for Let's Encrypt).
+#   - Backend, Postgres, Prometheus, Grafana, Alertmanager ports are published
+#     directly to localhost so you can hit them without a reverse proxy.
+#   - server-monitor is disabled by default locally (bind-mounting host root
+#     read-only is unnecessary noise for a local smoke test).
+
+services:
+  backend:
+    ports:
+      - "8000:8000"
+
+  postgres:
+    ports:
+      - "5432:5432"   # handy for `psql` from the host while debugging
+
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  alertmanager:
+    ports:
+      - "9093:9093"
+
+  grafana:
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # override the sub-path root URL from the prod compose file — locally
+      # Grafana is served directly at :3000, not behind Caddy at /grafana/
+      GF_SERVER_ROOT_URL: "http://localhost:3000/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "false"
+    ports:
+      - "3000:3000"
+
+  caddy:
+    profiles: ["prod-only"]   # effectively disables it locally
+
+  server-monitor:
+    profiles: ["prod-only"]   # effectively disables it locally

@@ -1,0 +1,34 @@
+# Alertmanager -> Discord.
+#
+# Discord doesn't speak Alertmanager's native webhook format, so we route
+# through Discord's Slack-compatible webhook endpoint by appending
+# "/slack" to the webhook URL Discord gives you. This lets us reuse the
+# same #alerts channel your server-monitor service already posts to,
+# without running an extra bridge container.
+#
+# Set DISCORD_WEBHOOK_URL in .env, then reference it below (Alertmanager
+# doesn't support env var interpolation directly, so this file is templated
+# by scripts/render-alertmanager-config.sh at deploy time — see README).
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: discord
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      repeat_interval: 30m
+
+receivers:
+  - name: discord
+    slack_configs:
+      - api_url: "__DISCORD_WEBHOOK_URL__/slack"
+        channel: "#alerts"
+        send_resolved: true
+        title: "{{ .CommonAnnotations.summary }}"
+        text: "{{ .CommonAnnotations.description }}"

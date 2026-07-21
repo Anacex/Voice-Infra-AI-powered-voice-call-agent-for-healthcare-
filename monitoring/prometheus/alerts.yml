@@ -1,0 +1,64 @@
+groups:
+  - name: voice-agent-availability
+    rules:
+      - alert: BackendDown
+        expr: up{job="voice-backend"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Voice agent backend is unreachable"
+          description: "Prometheus cannot scrape the backend for 1m. Webhooks from Vapi may be failing, meaning calls could be failing silently."
+
+      - alert: DatabaseUnreachable
+        expr: voice_db_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Backend cannot reach Postgres"
+          description: "Call data is not being persisted. Patients may still be talking to the agent but nothing is being recorded."
+
+      - alert: NoCallsReceivedDuringBusinessHours
+        expr: increase(voice_webhook_events_total[30m]) == 0
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "No webhook events in the last 30 minutes"
+          description: "Could mean genuinely no calls, or the phone number / Vapi integration is broken. Cross-check against expected call volume before paging."
+
+  - name: voice-agent-errors
+    rules:
+      - alert: HighWebhookErrorRate
+        expr: |
+          sum(rate(voice_webhook_errors_total[5m]))
+          /
+          clamp_min(sum(rate(voice_webhook_events_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Webhook error rate above 5% over 5m"
+          description: "Something is wrong in webhook processing (bad signatures, DB errors, or bad payloads). Check backend logs for the 'reason' label."
+
+      - alert: HighToolCallFailureRate
+        expr: sum(rate(voice_tool_call_errors_total[10m])) > 0.2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Elevated tool/function call failures"
+          description: "The agent's function calls (e.g. lookup patient, check availability) are failing at an elevated rate — patients may be getting degraded service."
+
+      - alert: WebhookLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(voice_webhook_latency_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "p95 webhook handler latency > 2s"
+          description: "Slow webhook responses can cause Vapi to time out mid-call, degrading the caller experience."
+
+      - alert: AbnormalCallEndReasons
+        expr: sum(rate(voice_calls_total{status=~".*error.*|.*failed.*"}[15m])) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Calls ending with error/failed reasons"
+          description: "Check /calls and Jaeger traces for the affected call_ids to diagnose."

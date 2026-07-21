@@ -1,0 +1,121 @@
+# ---------------------------------------------------------------------------
+# Single-VPS production stack for the voice agent backend.
+#
+# Deliberately NOT Kubernetes: at "hundreds of calls/week per practice" scale,
+# a $20-40/month VPS with docker-compose + automated backups + real monitoring
+# beats a K8s cluster nobody has time to operate for a 3-hour build. See
+# README.md "Prioritization & Trade-offs" for the full justification.
+#
+# Bring up:  docker compose up -d --build
+# Bring up log-collector stack too: see log-collector/docker-compose.yml
+#   (kept as a separate compose file/project since it's already self-contained
+#   with its own Jaeger instance; run both via the Makefile target `make up`)
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voiceagent
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: voiceagent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backup/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceagent -d voiceagent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://voiceagent:${PG_PASSWORD}@postgres:5432/voiceagent
+      VAPI_WEBHOOK_SECRET: ${VAPI_WEBHOOK_SECRET}
+      PORT: "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    # not exposed to host directly — only via Caddy reverse proxy (TLS termination)
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - grafana
+    networks: [internal]
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prom_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    networks: [internal]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    networks: [internal]
+
+  grafana:
+    image: grafana/grafana-oss:11.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "https://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks: [internal]
+
+  server-monitor:
+    # Your existing SSL/disk alerting service. Watches this host + the domain cert.
+    build: ../server-monitor        # path to your existing repo, adjust as needed
+    restart: unless-stopped
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      SSL_DOMAINS: ${DOMAIN}
+      SSL_THRESHOLD_DAYS: "14"
+      DISK_THRESHOLD_PERCENT: "80"
+      CHECK_INTERVAL_MINUTES: "360"
+      ALERT_COOLDOWN_HOURS: "24"
+      DISK_CHECK_PATH: /hostfs
+    volumes:
+      - /:/hostfs:ro
+      - server_monitor_state:/var/lib/server-monitor
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  prom_data:
+  grafana_data:
+  caddy_data:
+  caddy_config:
+  server_monitor_state:
+

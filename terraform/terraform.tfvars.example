@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored — never commit real secrets.
+
+ssh_key_name           = "your-ec2-keypair-name"
+ssh_allowed_cidr        = "YOUR.IP.ADDR.ESS/32"   # find yours: curl -s ifconfig.me
+domain                  = "candidate-name.stratus-eval.dev"
+repo_url                = "https://github.com/<you>/voice-infra.git"
+pg_password             = "generate-a-strong-random-password"
+grafana_admin_password  = "generate-a-strong-random-password"
+vapi_webhook_secret     = ""
+vapi_api_key            = ""
+discord_webhook_url     = ""

@@ -1,0 +1,32 @@
+{$DOMAIN} {
+	# Automatic HTTPS via Let's Encrypt — no certbot/manual renewal needed,
+	# Caddy handles issuance and renewal itself.
+
+	encode gzip
+
+	# Vapi webhooks + call debug API
+	handle /webhooks/* {
+		reverse_proxy backend:8000
+	}
+	handle /calls* {
+		reverse_proxy backend:8000
+	}
+	handle /healthz {
+		reverse_proxy backend:8000
+	}
+
+	# Grafana dashboards, served under /grafana/
+	handle /grafana/* {
+		reverse_proxy grafana:3000
+	}
+
+	# Everything else -> 404 (no reason to expose /metrics or Postgres publicly)
+	handle {
+		respond "not found" 404
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

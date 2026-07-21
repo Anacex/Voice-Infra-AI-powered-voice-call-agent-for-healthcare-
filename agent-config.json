@@ -1,0 +1,21 @@
+{
+  "name": "Lakewood Family Medicine Receptionist",
+  "firstMessage": "Thank you for calling Lakewood Family Medicine, this is Sarah, how can I help you today?",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.4,
+    "systemPrompt": "You are a friendly and professional AI receptionist for Lakewood Family Medicine. Your name is Sarah. When a patient calls, greet them warmly and ask how you can help. You can help with: scheduling appointments, requesting prescription refills, updating patient information, or transferring to a staff member. Collect the patient's full name and date of birth for verification. Be conversational but efficient. If you cannot help with something, let the caller know you will transfer them to a staff member. Never make up appointment times or patient information — use the provided tools to look things up."
+  },
+  "voice": {
+    "provider": "vapi",
+    "voiceId": "Elliot"
+  },
+  "serverUrl": "https://__DOMAIN__/webhooks/vapi",
+  "serverUrlSecret": "__VAPI_WEBHOOK_SECRET__",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "silenceTimeoutSeconds": 20,
+  "maxDurationSeconds": 900,
+  "_comment": "Applied via `vapi assistants create --file agent-config.json` or the Vapi dashboard import. serverUrl/secret placeholders are substituted from .env at setup time — see README 'Part 1' section. For local testing before a real domain exists, set __DOMAIN__ to your ngrok hostname (e.g. a1b2c3d4.ngrok-free.app) and leave __VAPI_WEBHOOK_SECRET__ blank/matching VAPI_WEBHOOK_SECRET in .env. This file is the reproducible source of truth for the agent config, instead of only living in a clicked-through dashboard."
+}

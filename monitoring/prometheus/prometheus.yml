@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  - job_name: "voice-backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Your existing gRPC log-collector services also expose Prometheus metrics
+  # on the ports documented in their README (2112-2115). Uncomment and point
+  # at the right host if that stack runs on the same docker network / host:
+  # - job_name: "log-collector"
+  #   static_configs:
+  #     - targets: ["frontend:2112", "backend-svc:2113", "AIS:2114", "CV:2115"]

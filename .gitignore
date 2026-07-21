@@ -1,0 +1,10 @@
+.env
+secrets/
+backup/backups/*.dump
+*.pyc
+__pycache__/
+.DS_Store
+monitoring/prometheus/alertmanager.yml
+terraform.tfvars
+*.tfstate*
+.terraform/
